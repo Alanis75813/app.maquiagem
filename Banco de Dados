@@ -1,0 +1,130 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, Button, FlatList } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import * as SQLite from 'expo-sqlite';
+
+const db = SQLite.openDatabase('database.db');
+
+const HomeScreen = ({ navigation }) => {
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{ fontSize: 28, marginBottom: 16 }}>Loja de Maquiagem</Text>
+      <Ionicons
+        name="ios-cart"
+        size={60}
+        color="pink"
+        style={{ marginBottom: 16 }}
+        onPress={() => navigation.navigate('TodoList')}
+      />
+    </View>
+  );
+};
+
+const TodoListScreen = () => {
+  const [task, setTask] = useState('');
+  const [tasks, setTasks] = useState([]);
+
+  useEffect(() => {
+    db.transaction((tx) => {
+      tx.executeSql(
+        'CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL)',
+        [],
+        () => console.log('Tabela de tarefas criada com sucesso!'),
+        (error) => console.log('Erro ao criar a tabela de tarefas: ', error)
+      );
+    });
+  }, []);
+
+  const handleAddTask = () => {
+    if (task.trim()) {
+      db.transaction((tx) => {
+        tx.executeSql(
+          'INSERT INTO tasks (title) VALUES (?)',
+          [task],
+          (_, { insertId }) => {
+            setTasks([...tasks, { id: insertId, title: task }]);
+            setTask('');
+          },
+          (error) => console.log('Erro ao adicionar tarefa: ', error)
+        );
+      });
+    }
+  };
+
+  const handleDeleteTask = (id) => {
+    db.transaction((tx) => {
+      tx.executeSql(
+        'DELETE FROM tasks WHERE id = ?',
+        [id],
+        () => {
+          const newTasks = tasks.filter((task) => task.id !== id);
+          setTasks(newTasks);
+        },
+        (error) => console.log('Erro ao excluir tarefa: ', error)
+      );
+    });
+  };
+
+  useEffect(() => {
+    db.transaction((tx) => {
+      tx.executeSql(
+        'SELECT * FROM tasks',
+        [],
+        (_, { rows }) => {
+          const data = [];
+          for (let i = 0; i < rows.length; i++) {
+            data.push(rows.item(i));
+          }
+          setTasks(data);
+        },
+        (error) => console.log('Erro ao obter tarefas: ', error)
+      );
+    });
+  }, []);
+
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{ fontSize: 24, marginBottom: 16 }}>Lista de Pedidos</Text>
+      <TextInput
+        style={{ width: '80%', borderWidth: 1, padding: 8, marginBottom: 16 }}
+        placeholder="Digite seu pedido"
+        value={task}
+        onChangeText={(text) => setTask(text)}
+      />
+      <Button title="Adicionar Intens a Lista" onPress={handleAddTask} />
+      <FlatList
+        style={{ width: '80%', marginTop: 16 }}
+        data={tasks}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
+            <Text>{item.title}</Text>
+            <Ionicons
+              name="ios-trash"
+              size={24}
+              color="pink"
+              onPress={() => handleDeleteTask(item.id)}
+            />
+          </View>
+        )}
+      />
+    </View>
+  );
+};
+
+const Stack = createStackNavigator();
+
+const App = () => {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Home">
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="TodoList" component={TodoListScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
+
+export default App;
